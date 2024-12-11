@@ -1329,8 +1329,10 @@ static int spi_nor_process_sfdp(const struct device *dev)
 					};
 				}
 
-				if (!((sys_le32_to_cpu(u2.dw[0]) & BIT(0)) &&
-				      (sys_le32_to_cpu(u2.dw[1]) & BIT(6)))) {
+				if (!((sys_le32_to_cpu(u2.dw[0]) &
+				       JESD216_SFDP_4B_ADDR_DW1_1S_1S_1S_READ_13_SUP) &&
+				      (sys_le32_to_cpu(u2.dw[0]) &
+				       JESD216_SFDP_4B_ADDR_DW1_1S_1S_1S_PP_12_SUP))) {
 					LOG_ERR("4-byte addressing not supported");
 					return -ENOTSUP;
 				}
@@ -1676,11 +1678,19 @@ flash_nor_get_parameters(const struct device *dev)
 	return &flash_nor_parameters;
 }
 
-static const struct flash_driver_api spi_nor_api = {
+static int flash_nor_get_size(const struct device *dev, uint64_t *size)
+{
+	*size = (uint64_t)dev_flash_size(dev);
+
+	return 0;
+}
+
+static DEVICE_API(flash, spi_nor_api) = {
 	.read = spi_nor_read,
 	.write = spi_nor_write,
 	.erase = spi_nor_erase,
 	.get_parameters = flash_nor_get_parameters,
+	.get_size = flash_nor_get_size,
 #if defined(CONFIG_FLASH_PAGE_LAYOUT)
 	.page_layout = spi_nor_pages_layout,
 #endif

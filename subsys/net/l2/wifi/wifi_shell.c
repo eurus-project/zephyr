@@ -56,6 +56,16 @@ static const char client_cert2_test[] = {
 static const char client_key2_test[] = {
 	#include <wifi_enterprise_test_certs/client-key2.pem.inc>
 	'\0'};
+
+static const char server_cert_test[] = {
+	#include <wifi_enterprise_test_certs/server.pem.inc>
+	'\0'
+};
+
+static const char server_key_test[] = {
+	#include <wifi_enterprise_test_certs/server-key.pem.inc>
+	'\0'
+};
 #endif
 
 #define WIFI_SHELL_MODULE "wifi"
@@ -104,7 +114,8 @@ struct wifi_ap_sta_node {
 static struct wifi_ap_sta_node sta_list[CONFIG_WIFI_SHELL_MAX_AP_STA];
 
 
-#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ENTERPRISE
+#if defined CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ENTERPRISE || \
+	defined CONFIG_WIFI_NM_HOSTAPD_CRYPTO_ENTERPRISE
 static int cmd_wifi_set_enterprise_creds(const struct shell *sh, struct net_if *iface)
 {
 	struct wifi_enterprise_creds_params params = {0};
@@ -121,6 +132,10 @@ static int cmd_wifi_set_enterprise_creds(const struct shell *sh, struct net_if *
 	params.client_cert2_len = ARRAY_SIZE(client_cert2_test);
 	params.client_key2 = (uint8_t *)client_key2_test;
 	params.client_key2_len = ARRAY_SIZE(client_key2_test);
+	params.server_cert = (uint8_t *)server_cert_test;
+	params.server_cert_len = ARRAY_SIZE(server_cert_test);
+	params.server_key = (uint8_t *)server_key_test;
+	params.server_key_len = ARRAY_SIZE(server_key_test);
 
 	if (net_mgmt(NET_REQUEST_WIFI_ENTERPRISE_CREDS, iface, &params, sizeof(params))) {
 		PR_WARNING("Set enterprise credentials failed\n");
@@ -561,6 +576,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 		{"channel", required_argument, 0, 'c'},
 		{"timeout", required_argument, 0, 't'},
 		{"anon-id", required_argument, 0, 'a'},
+		{"bandwidth", required_argument, 0, 'B'},
 		{"key1-pwd", required_argument, 0, 'K'},
 		{"key2-pwd", required_argument, 0, 'K'},
 		{"suiteb-type", required_argument, 0, 'S'},
@@ -581,6 +597,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 		{"eap-pwd6", required_argument, 0, 'P'},
 		{"eap-pwd7", required_argument, 0, 'P'},
 		{"eap-pwd8", required_argument, 0, 'P'},
+		{"ignore-broadcast-ssid", required_argument, 0, 'i'},
 		{"ieee-80211r", no_argument, 0, 'R'},
 		{"help", no_argument, 0, 'h'},
 		{0, 0, 0, 0}};
@@ -598,6 +615,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 	size_t offset = 0;
 	long channel;
 	int key_passwd_cnt = 0;
+	int ret = 0;
 
 	/* Defaults */
 	params->band = WIFI_FREQ_BAND_UNKNOWN;
@@ -605,8 +623,10 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 	params->security = WIFI_SECURITY_TYPE_NONE;
 	params->mfp = WIFI_MFP_OPTIONAL;
 	params->eap_ver = 1;
+	params->ignore_broadcast_ssid = 0;
+	params->bandwidth = WIFI_FREQ_BANDWIDTH_20MHZ;
 
-	while ((opt = getopt_long(argc, argv, "s:p:k:e:w:b:c:m:t:a:K:S:V:I:P:Rh",
+	while ((opt = getopt_long(argc, argv, "s:p:k:e:w:b:c:m:t:a:B:K:S:V:I:P:i:Rh",
 				  long_options, &opt_index)) != -1) {
 		state = getopt_state_get();
 		switch (opt) {
@@ -711,12 +731,30 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			}
 			break;
 		case 'a':
-			params->anon_id = optarg;
+			params->anon_id = state->optarg;
 			params->aid_length = strlen(params->anon_id);
 			if (params->aid_length > WIFI_ENT_IDENTITY_MAX_LEN) {
 				PR_WARNING("anon_id too long (max %d characters)\n",
 					    WIFI_ENT_IDENTITY_MAX_LEN);
 				return -EINVAL;
+			}
+			break;
+		case 'B':
+			if (iface_mode == WIFI_MODE_AP) {
+				switch (atoi(state->optarg)) {
+				case 1:
+					params->bandwidth = WIFI_FREQ_BANDWIDTH_20MHZ;
+					break;
+				case 2:
+					params->bandwidth = WIFI_FREQ_BANDWIDTH_40MHZ;
+					break;
+				case 3:
+					params->bandwidth = WIFI_FREQ_BANDWIDTH_80MHZ;
+					break;
+				default:
+					PR_ERROR("Invalid bandwidth: %d\n", atoi(state->optarg));
+					return -EINVAL;
+				}
 			}
 			break;
 		case 'K':
@@ -726,7 +764,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			}
 
 			if (key_passwd_cnt == 0) {
-				params->key_passwd = optarg;
+				params->key_passwd = state->optarg;
 				params->key_passwd_length = strlen(params->key_passwd);
 				if (params->key_passwd_length > WIFI_ENT_PSWD_MAX_LEN) {
 					PR_WARNING("key_passwd too long (max %d characters)\n",
@@ -734,7 +772,7 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 					return -EINVAL;
 				}
 			} else if (key_passwd_cnt == 1) {
-				params->key2_passwd = optarg;
+				params->key2_passwd = state->optarg;
 				params->key2_passwd_length = strlen(params->key2_passwd);
 				if (params->key2_passwd_length > WIFI_ENT_PSWD_MAX_LEN) {
 					PR_WARNING("key2_passwd too long (max %d characters)\n",
@@ -745,18 +783,27 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			key_passwd_cnt++;
 			break;
 		case 'S':
-			params->suiteb_type = atoi(optarg);
+			params->suiteb_type = atoi(state->optarg);
 			break;
 		case 'V':
-			params->eap_ver = atoi(optarg);
+			params->eap_ver = atoi(state->optarg);
 			if (params->eap_ver != 0U && params->eap_ver != 1U) {
 				PR_WARNING("eap_ver error %d\n", params->eap_ver);
 				return -EINVAL;
 			}
 			break;
 		case 'I':
-			params->eap_identity = optarg;
+			if (params->nusers >= WIFI_ENT_IDENTITY_MAX_USERS) {
+				PR_WARNING("too many eap identities (max %d identities)\n",
+					    WIFI_ENT_IDENTITY_MAX_USERS);
+				return -EINVAL;
+			}
+
+			params->eap_identity = state->optarg;
 			params->eap_id_length = strlen(params->eap_identity);
+
+			params->identities[params->nusers] = state->optarg;
+			params->nusers++;
 			if (params->eap_id_length > WIFI_ENT_IDENTITY_MAX_LEN) {
 				PR_WARNING("eap identity too long (max %d characters)\n",
 					    WIFI_ENT_IDENTITY_MAX_LEN);
@@ -764,8 +811,17 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 			}
 			break;
 		case 'P':
-			params->eap_password = optarg;
+			if (params->passwds >= WIFI_ENT_IDENTITY_MAX_USERS) {
+				PR_WARNING("too many eap passwds (max %d passwds)\n",
+					    WIFI_ENT_IDENTITY_MAX_USERS);
+				return -EINVAL;
+			}
+
+			params->eap_password = state->optarg;
 			params->eap_passwd_length = strlen(params->eap_password);
+
+			params->passwords[params->passwds] = state->optarg;
+			params->passwds++;
 			if (params->eap_passwd_length > WIFI_ENT_PSWD_MAX_LEN) {
 				PR_WARNING("eap password length too long (max %d characters)\n",
 					    WIFI_ENT_PSWD_MAX_LEN);
@@ -775,13 +831,22 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 		case 'R':
 			params->ft_used = true;
 			break;
+		case 'i':
+			params->ignore_broadcast_ssid = shell_strtol(state->optarg, 10, &ret);
+			break;
 		case 'h':
 			return -ENOEXEC;
 		default:
 			PR_ERROR("Invalid option %c\n", state->optopt);
 			return -EINVAL;
 		}
+
+		if (ret) {
+			PR_ERROR("Invalid argument %d ret %d\n", opt_index, ret);
+			return -EINVAL;
+		}
 	}
+
 	if (params->psk && !secure_connection) {
 		PR_WARNING("Passphrase provided without security configuration\n");
 	}
@@ -818,6 +883,10 @@ static int __wifi_args_to_params(const struct shell *sh, size_t argc, char *argv
 		}
 	}
 #endif
+	if (params->ignore_broadcast_ssid > 2) {
+		PR_ERROR("Invalid ignore_broadcast_ssid value\n");
+		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -1007,7 +1076,7 @@ static int wifi_scan_args_to_params(const struct shell *sh,
 
 static int cmd_wifi_scan(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_scan_params params = { 0 };
 	bool do_scan = true;
 	int opt_num;
@@ -1043,7 +1112,7 @@ static int cmd_wifi_scan(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_status(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_iface_status status = { 0 };
 
 	context.sh = sh;
@@ -1080,7 +1149,9 @@ static int cmd_wifi_status(const struct shell *sh, size_t argc, char *argv[])
 		PR("DTIM: %d\n", status.dtim_period);
 		PR("TWT: %s\n",
 		   status.twt_capable ? "Supported" : "Not supported");
-		PR("Current PHY rate : %d\n", status.current_phy_rate);
+		PR("Current PHY TX rate (Mbps) : %d.%03d\n",
+		   status.current_phy_tx_rate / 1000,
+		   status.current_phy_tx_rate % 1000);
 	}
 
 	return 0;
@@ -1175,7 +1246,7 @@ static int cmd_wifi_stats(const struct shell *sh, size_t argc, char *argv[])
 {
 #if defined(CONFIG_NET_STATISTICS_WIFI) && \
 					defined(CONFIG_NET_STATISTICS_USER_API)
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct net_stats_wifi stats = { 0 };
 	int ret;
 
@@ -1218,7 +1289,7 @@ static int cmd_wifi_stats(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_11k(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_11k_params params = { 0 };
 
 	context.sh = sh;
@@ -1259,7 +1330,7 @@ static int cmd_wifi_11k(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_11k_neighbor_request(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_11k_params params = { 0 };
 
 	context.sh = sh;
@@ -1296,7 +1367,7 @@ static int cmd_wifi_11k_neighbor_request(const struct shell *sh, size_t argc, ch
 
 static int cmd_wifi_ps(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 
 	context.sh = sh;
@@ -1384,7 +1455,7 @@ static int cmd_wifi_ps(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_ps_mode(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 
 	context.sh = sh;
@@ -1414,7 +1485,7 @@ static int cmd_wifi_ps_mode(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_ps_timeout(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 	long timeout_ms = 0;
 	int err = 0;
@@ -1449,7 +1520,7 @@ static int cmd_wifi_ps_timeout(const struct shell *sh, size_t argc, char *argv[]
 static int cmd_wifi_twt_setup_quick(const struct shell *sh, size_t argc,
 				    char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_twt_params params = { 0 };
 	int idx = 1;
 	long value;
@@ -1496,7 +1567,7 @@ static int cmd_wifi_twt_setup_quick(const struct shell *sh, size_t argc,
 static int cmd_wifi_twt_setup(const struct shell *sh, size_t argc,
 			      char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_twt_params params = { 0 };
 	int idx = 1;
 	long value;
@@ -1581,7 +1652,7 @@ static int cmd_wifi_twt_setup(const struct shell *sh, size_t argc,
 static int cmd_wifi_twt_teardown(const struct shell *sh, size_t argc,
 				 char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_twt_params params = { 0 };
 	long value;
 
@@ -1631,7 +1702,7 @@ static int cmd_wifi_twt_teardown(const struct shell *sh, size_t argc,
 static int cmd_wifi_twt_teardown_all(const struct shell *sh, size_t argc,
 				     char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_twt_params params = { 0 };
 
 	context.sh = sh;
@@ -1666,6 +1737,18 @@ static int cmd_wifi_ap_enable(const struct shell *sh, size_t argc,
 		shell_help(sh);
 		return -ENOEXEC;
 	}
+
+#ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_CRYPTO_ENTERPRISE
+	/* Load the enterprise credentials if needed */
+	if (cnx_params.security == WIFI_SECURITY_TYPE_EAP_TLS ||
+	    cnx_params.security == WIFI_SECURITY_TYPE_EAP_PEAP_MSCHAPV2 ||
+	    cnx_params.security == WIFI_SECURITY_TYPE_EAP_PEAP_GTC ||
+	    cnx_params.security == WIFI_SECURITY_TYPE_EAP_TTLS_MSCHAPV2 ||
+	    cnx_params.security == WIFI_SECURITY_TYPE_EAP_PEAP_TLS ||
+	    cnx_params.security == WIFI_SECURITY_TYPE_EAP_TLS_SHA256) {
+		cmd_wifi_set_enterprise_creds(sh, iface);
+	}
+#endif
 
 	k_mutex_init(&wifi_ap_sta_list_lock);
 
@@ -1743,11 +1826,7 @@ static int cmd_wifi_ap_stations(const struct shell *sh, size_t argc,
 static int cmd_wifi_ap_sta_disconnect(const struct shell *sh, size_t argc,
 				      char *argv[])
 {
-#ifdef CONFIG_WIFI_NM_HOSTAPD_AP
 	struct net_if *iface = net_if_get_wifi_sap();
-#else
-	struct net_if *iface = net_if_get_first_wifi();
-#endif
 	uint8_t mac[6];
 	int ret;
 
@@ -1776,11 +1855,15 @@ static int wifi_ap_config_args_to_params(const struct shell *sh, size_t argc, ch
 	static const struct option long_options[] = {
 		{"max_inactivity", required_argument, 0, 'i'},
 		{"max_num_sta", required_argument, 0, 's'},
+#if defined(CONFIG_WIFI_NM_HOSTAPD_AP)
+		{"ht_capab", required_argument, 0, 'n'},
+		{"vht_capab", required_argument, 0, 'c'},
+#endif
 		{"help", no_argument, 0, 'h'},
 		{0, 0, 0, 0}};
 	long val;
 
-	while ((opt = getopt_long(argc, argv, "i:s:h",
+	while ((opt = getopt_long(argc, argv, "i:s:n:c:h",
 				  long_options, &opt_index)) != -1) {
 		state = getopt_state_get();
 		switch (opt) {
@@ -1800,6 +1883,16 @@ static int wifi_ap_config_args_to_params(const struct shell *sh, size_t argc, ch
 			params->max_num_sta = (uint32_t)val;
 			params->type |= WIFI_AP_CONFIG_PARAM_MAX_NUM_STA;
 			break;
+#if defined(CONFIG_WIFI_NM_HOSTAPD_AP)
+		case 'n':
+			strncpy(params->ht_capab, state->optarg, WIFI_AP_IEEE_80211_CAPAB_MAX_LEN);
+			params->type |= WIFI_AP_CONFIG_PARAM_HT_CAPAB;
+			break;
+		case 'c':
+			strncpy(params->vht_capab, state->optarg, WIFI_AP_IEEE_80211_CAPAB_MAX_LEN);
+			params->type |= WIFI_AP_CONFIG_PARAM_VHT_CAPAB;
+			break;
+#endif
 		case 'h':
 			shell_help(sh);
 			return SHELL_CMD_HELP_PRINTED;
@@ -1816,11 +1909,7 @@ static int wifi_ap_config_args_to_params(const struct shell *sh, size_t argc, ch
 static int cmd_wifi_ap_config_params(const struct shell *sh, size_t argc,
 				     char *argv[])
 {
-#ifdef CONFIG_WIFI_NM_HOSTAPD_AP
 	struct net_if *iface = net_if_get_wifi_sap();
-#else
-	struct net_if *iface = net_if_get_first_wifi();
-#endif
 	struct wifi_ap_config_params ap_config_params = { 0 };
 	int ret = -1;
 
@@ -1844,7 +1933,7 @@ static int cmd_wifi_ap_config_params(const struct shell *sh, size_t argc,
 static int cmd_wifi_reg_domain(const struct shell *sh, size_t argc,
 			       char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_reg_domain regd = {0};
 	int ret, chan_idx = 0;
 
@@ -1913,7 +2002,7 @@ static int cmd_wifi_reg_domain(const struct shell *sh, size_t argc,
 
 static int cmd_wifi_listen_interval(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 	long interval;
 
@@ -1933,7 +2022,6 @@ static int cmd_wifi_listen_interval(const struct shell *sh, size_t argc, char *a
 		    WIFI_PS_PARAM_LISTEN_INTERVAL_RANGE_INVALID) {
 			PR_WARNING("Setting listen interval failed. Reason :%s\n",
 				   wifi_ps_get_config_err_code_str(params.fail_reason));
-			PR_WARNING("Hardware support valid range : 3 - 65535\n");
 		} else {
 			PR_WARNING("Setting listen interval failed. Reason :%s\n",
 				   wifi_ps_get_config_err_code_str(params.fail_reason));
@@ -1949,7 +2037,7 @@ static int cmd_wifi_listen_interval(const struct shell *sh, size_t argc, char *a
 #ifdef CONFIG_WIFI_NM_WPA_SUPPLICANT_WNM
 static int cmd_wifi_btm_query(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	uint8_t query_reason = 0;
 	long tmp = 0;
 
@@ -1975,7 +2063,7 @@ static int cmd_wifi_btm_query(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_wps_pbc(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_wps_config_params params = {0};
 
 	context.sh = sh;
@@ -1997,7 +2085,7 @@ static int cmd_wifi_wps_pbc(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_wifi_wps_pin(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_wps_config_params params = {0};
 
 	context.sh = sh;
@@ -2024,9 +2112,60 @@ static int cmd_wifi_wps_pin(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
+static int cmd_wifi_ap_wps_pbc(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct net_if *iface = net_if_get_wifi_sap();
+	struct wifi_wps_config_params params = {0};
+
+	context.sh = sh;
+
+	if (argc == 1) {
+		params.oper = WIFI_WPS_PBC;
+	} else {
+		shell_help(sh);
+		return -ENOEXEC;
+	}
+
+	if (net_mgmt(NET_REQUEST_WIFI_WPS_CONFIG, iface, &params, sizeof(params))) {
+		PR_WARNING("Start AP WPS PBC failed\n");
+		return -ENOEXEC;
+	}
+
+	return 0;
+}
+
+static int cmd_wifi_ap_wps_pin(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct net_if *iface = net_if_get_wifi_sap();
+	struct wifi_wps_config_params params = {0};
+
+	context.sh = sh;
+
+	if (argc == 1) {
+		params.oper = WIFI_WPS_PIN_GET;
+	} else if (argc == 2) {
+		params.oper = WIFI_WPS_PIN_SET;
+		strncpy(params.pin, argv[1], WIFI_WPS_PIN_MAX_LEN);
+	} else {
+		shell_help(sh);
+		return -ENOEXEC;
+	}
+
+	if (net_mgmt(NET_REQUEST_WIFI_WPS_CONFIG, iface, &params, sizeof(params))) {
+		PR_WARNING("Start AP WPS PIN failed\n");
+		return -ENOEXEC;
+	}
+
+	if (params.oper == WIFI_WPS_PIN_GET) {
+		PR("WPS PIN is: %s\n", params.pin);
+	}
+
+	return 0;
+}
+
 static int cmd_wifi_ps_wakeup_mode(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 
 	context.sh = sh;
@@ -2057,7 +2196,7 @@ static int cmd_wifi_ps_wakeup_mode(const struct shell *sh, size_t argc, char *ar
 
 static int cmd_wifi_set_rts_threshold(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	unsigned int rts_threshold = -1; /* Default value if user supplies "off" argument */
 	int err = 0;
 
@@ -2114,7 +2253,7 @@ static int cmd_wifi_set_rts_threshold(const struct shell *sh, size_t argc, char 
 static int cmd_wifi_ps_exit_strategy(const struct shell *sh, size_t argc,
 			    char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_ps_params params = { 0 };
 
 	context.sh = sh;
@@ -2215,7 +2354,7 @@ static int cmd_wifi_mode(const struct shell *sh, size_t argc, char *argv[])
 		 * lower layer
 		 */
 		if (mode_info.if_index == 0) {
-			iface = net_if_get_first_wifi();
+			iface = net_if_get_wifi_sta();
 			if (iface == NULL) {
 				PR_ERROR("Cannot find the default wifi interface\n");
 				return -ENOEXEC;
@@ -2304,7 +2443,7 @@ static int cmd_wifi_channel(const struct shell *sh, size_t argc, char *argv[])
 		 */
 
 		if (channel_info.if_index == 0) {
-			iface = net_if_get_first_wifi();
+			iface = net_if_get_wifi_sta();
 			if (iface == NULL) {
 				PR_ERROR("Cannot find the default wifi interface\n");
 				return -ENOEXEC;
@@ -2418,7 +2557,7 @@ static int cmd_wifi_packet_filter(const struct shell *sh, size_t argc, char *arg
 		 * value to be verified by the lower layer.
 		 */
 		if (packet_filter.if_index == 0) {
-			iface = net_if_get_first_wifi();
+			iface = net_if_get_wifi_sta();
 			if (iface == NULL) {
 				PR_ERROR("Cannot find the default wifi interface\n");
 				return -ENOEXEC;
@@ -2455,7 +2594,7 @@ static int cmd_wifi_packet_filter(const struct shell *sh, size_t argc, char *arg
 
 static int cmd_wifi_version(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_version version = {0};
 
 	if (argc > 1) {
@@ -2700,7 +2839,7 @@ static int parse_dpp_args_set_config_param(const struct shell *sh, size_t argc, 
 
 static int cmd_wifi_dpp_configurator_add(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_CONFIGURATOR_ADD;
@@ -2715,7 +2854,7 @@ static int cmd_wifi_dpp_configurator_add(const struct shell *sh, size_t argc, ch
 static int cmd_wifi_dpp_auth_init(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_AUTH_INIT;
@@ -2735,7 +2874,7 @@ static int cmd_wifi_dpp_auth_init(const struct shell *sh, size_t argc, char *arg
 
 static int cmd_wifi_dpp_qr_code(const struct shell *sh, size_t argc, char *argv[])
 {
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_QR_CODE;
@@ -2754,7 +2893,7 @@ static int cmd_wifi_dpp_qr_code(const struct shell *sh, size_t argc, char *argv[
 static int cmd_wifi_dpp_chirp(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_CHIRP;
@@ -2775,7 +2914,7 @@ static int cmd_wifi_dpp_chirp(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_wifi_dpp_listen(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_LISTEN;
@@ -2796,7 +2935,7 @@ static int cmd_wifi_dpp_listen(const struct shell *sh, size_t argc, char *argv[]
 static int cmd_wifi_dpp_btstrap_gen(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_BOOTSTRAP_GEN;
@@ -2817,7 +2956,7 @@ static int cmd_wifi_dpp_btstrap_gen(const struct shell *sh, size_t argc, char *a
 static int cmd_wifi_dpp_btstrap_get_uri(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret = 0;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_BOOTSTRAP_GET_URI;
@@ -2841,7 +2980,7 @@ static int cmd_wifi_dpp_btstrap_get_uri(const struct shell *sh, size_t argc, cha
 static int cmd_wifi_dpp_configurator_set(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_SET_CONF_PARAM;
@@ -2862,7 +3001,7 @@ static int cmd_wifi_dpp_configurator_set(const struct shell *sh, size_t argc, ch
 static int cmd_wifi_dpp_resp_timeout_set(const struct shell *sh, size_t argc, char *argv[])
 {
 	int ret = 0;
-	struct net_if *iface = net_if_get_first_wifi();
+	struct net_if *iface = net_if_get_wifi_sta();
 	struct wifi_dpp_params params = {0};
 
 	params.action = WIFI_DPP_SET_WAIT_RESP_TIME;
@@ -3035,14 +3174,30 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      "-c --channel=<channel number>\n"
 		      "-p --passphrase=<PSK> (valid only for secure SSIDs)\n"
 		      "-k --key-mgmt=<Security type> (valid only for secure SSIDs)\n"
-		      "0:None, 1:WPA2-PSK, 2:WPA2-PSK-256, 3:SAE, 4:WAPI, 5:EAP-TLS, 6:WEP\n"
-		      "7: WPA-PSK, 11: DPP\n"
+		      "0:None, 1:WPA2-PSK, 2:WPA2-PSK-256, 3:SAE-HNP, 4:SAE-H2E, 5:SAE-AUTO, 6:WAPI,"
+		      "7:EAP-TLS, 8:WEP, 9: WPA-PSK, 10: WPA-Auto-Personal, 11: DPP\n"
+		      "12: EAP-PEAP-MSCHAPv2, 13: EAP-PEAP-GTC, 14: EAP-TTLS-MSCHAPv2,\n"
+		      "15: EAP-PEAP-TLS, 16:EAP_TLS_SHA256\n"
 		      "-w --ieee-80211w=<MFP> (optional: needs security type to be specified)\n"
 		      "0:Disable, 1:Optional, 2:Required\n"
 		      "-b --band=<band> (2 -2.6GHz, 5 - 5Ghz, 6 - 6GHz)\n"
 		      "-m --bssid=<BSSID>\n"
+		      "-i --ignore-broadcast-ssid=<type>. Hide SSID in AP mode.\n"
+		      "0: disabled (default)\n"
+		      "1: send empty (length=0) SSID in beacon and ignore probe request for "
+		      "broadcast SSID.\n"
+		      "2: clear SSID (ASCII 0), but keep the original length and ignore "
+		      "probe requests for broadcast SSID.\n"
+		      "[-B, --bandwidth=<bandwidth>]: 1:20MHz, 2:40MHz, 3:80MHz\n"
+		      "[-K, --key1-pwd for eap phase1 or --key2-pwd for eap phase2]:\n"
+		      "Private key passwd for enterprise mode. Default no password for private key.\n"
+		      "[-S, --suiteb-type]: 1:suiteb, 2:suiteb-192. Default 0: not suiteb mode.\n"
+		      "[-V, --eap-version]: 0 or 1. Default 1: eap version 1.\n"
+		      "[-I, --eap-id1...--eap-id8]: Client Identity. Default no eap identity.\n"
+		      "[-P, --eap-pwd1...--eap-pwd8]: Client Password.\n"
+		      "Default no password for eap user.\n"
 		      "-h --help (prints help)",
-		      cmd_wifi_ap_enable, 2, 13),
+		      cmd_wifi_ap_enable, 2, 45),
 	SHELL_CMD_ARG(stations, NULL, "List stations connected to the AP", cmd_wifi_ap_stations, 1,
 		      0),
 	SHELL_CMD_ARG(disconnect, NULL,
@@ -3053,8 +3208,25 @@ SHELL_STATIC_SUBCMD_SET_CREATE(
 		      "Configure AP parameters.\n"
 		      "-i --max_inactivity=<time duration (in seconds)>\n"
 		      "-s --max_num_sta=<maximum number of stations>\n"
+#if defined(CONFIG_WIFI_NM_HOSTAPD_AP)
+		      "Please refer to hostapd.conf to set the following options,\n"
+		      "============ IEEE 802.11 related configuration ============\n"
+		      "-n --ht_capab=<HT capabilities (string)>\n"
+		      "(e.g. \"ht_capab=[HT40+]\" is that \"-n [HT40+]\")\n"
+		      "-c --vht_capab=<VHT capabilities (string)>\n"
+		      "(e.g. \"vht_capab=[SU-BEAMFORMEE][BF-ANTENNA-4]\" is that\n"
+		      "\"-c [SU-BEAMFORMEE][BF-ANTENNA-4]\")\n"
+		      "===========================================================\n"
+#endif
 		      "-h --help (prints help)",
-		      cmd_wifi_ap_config_params, 2, 5),
+		      cmd_wifi_ap_config_params, 2, 10),
+	SHELL_CMD_ARG(wps_pbc, NULL,
+		      "Start AP WPS PBC session.\n",
+		      cmd_wifi_ap_wps_pbc, 1, 0),
+	SHELL_CMD_ARG(wps_pin, NULL,
+		      "Get or Set AP WPS PIN.\n"
+		      "[pin] Only applicable for set.\n",
+		      cmd_wifi_ap_wps_pin, 1, 1),
 	SHELL_CMD_ARG(status, NULL, "Status of Wi-Fi SAP\n", cmd_wifi_ap_status, 1, 0),
 	SHELL_SUBCMD_SET_END);
 
@@ -3224,7 +3396,8 @@ SHELL_SUBCMD_ADD((wifi), connect, &wifi_commands,
 		  "[-k, --key-mgmt]: Key Management type (valid only for secure SSIDs)\n"
 		  "0:None, 1:WPA2-PSK, 2:WPA2-PSK-256, 3:SAE-HNP, 4:SAE-H2E, 5:SAE-AUTO, 6:WAPI,"
 		  "7:EAP-TLS, 8:WEP, 9: WPA-PSK, 10: WPA-Auto-Personal, 11: DPP\n"
-		  "12: EAP-PEAP-MSCHAPv2, 13: EAP-PEAP-GTC, 14: EAP-TTLS-MSCHAPv2, 15: EAP-PEAP-TLS\n"
+		  "12: EAP-PEAP-MSCHAPv2, 13: EAP-PEAP-GTC, 14: EAP-TTLS-MSCHAPv2,\n"
+		  "15: EAP-PEAP-TLS, 16:EAP_TLS_SHA256\n"
 		  "[-w, --ieee-80211w]: MFP (optional: needs security type to be specified)\n"
 		  ": 0:Disable, 1:Optional, 2:Required.\n"
 		  "[-m, --bssid]: MAC address of the AP (BSSID).\n"
@@ -3321,7 +3494,8 @@ SHELL_SUBCMD_ADD((wifi), reg_domain, &wifi_commands,
 		 "Set or Get Wi-Fi regulatory domain\n"
 		 "[ISO/IEC 3166-1 alpha2]: Regulatory domain\n"
 		 "[-f]: Force to use this regulatory hint over any other regulatory hints\n"
-		 "Note: This may cause regulatory compliance issues, use it at your own risk.\n",
+		 "Note1: The behavior of this command is dependent on the Wi-Fi driver/chipset implementation\n"
+		 "Note2: This may cause regulatory compliance issues, use it at your own risk.\n",
 		 cmd_wifi_reg_domain,
 		 1, 2);
 

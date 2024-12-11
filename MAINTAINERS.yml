@@ -133,6 +133,7 @@ ARC arch:
     - evgeniy-paltsev
   collaborators:
     - abrodkin
+    - tagunil
   files:
     - arch/arc/
     - include/zephyr/arch/arc/
@@ -158,6 +159,7 @@ ARM arch:
     - MaureenHelm
     - stephanosio
     - bbolen
+    - wearyzen
   files:
     - arch/arm/
     - arch/arm/core/offsets/
@@ -194,6 +196,8 @@ ARM Platforms:
   status: maintained
   maintainers:
     - ithinuel
+  collaborators:
+    - wearyzen
   files:
     - boards/arm/mps*/
     - boards/arm/v2m_*/
@@ -312,6 +316,7 @@ Bluetooth HCI:
     - sjanc
     - theob-pro
     - HoZHel
+    - cvinayak
   files:
     - include/zephyr/drivers/bluetooth/
     - include/zephyr/drivers/bluetooth.h
@@ -325,7 +330,7 @@ Bluetooth HCI:
   tests:
     - bluetooth
 
-Bluetooth controller:
+Bluetooth Controller:
   status: maintained
   maintainers:
     - cvinayak
@@ -364,6 +369,7 @@ Bluetooth Host:
     - sjanc
     - Thalley
     - theob-pro
+    - cvinayak
   files:
     - doc/connectivity/bluetooth/
     - include/zephyr/bluetooth/
@@ -390,8 +396,10 @@ Bluetooth Host:
     - doc/connectivity/bluetooth/img/ctlr*
     - doc/connectivity/bluetooth/api/audio/
     - doc/connectivity/bluetooth/api/mesh/
-    - doc/connectivity/bluetooth/api/shell/iso.rst
     - doc/connectivity/bluetooth/api/controller.rst
+    - doc/connectivity/bluetooth/shell/classic/a2dp.rst
+    - doc/connectivity/bluetooth/shell/host/iso.rst
+    - doc/connectivity/bluetooth/shell/audio/
     - samples/bluetooth/bap*/
     - samples/bluetooth/cap*/
     - samples/bluetooth/hap*/
@@ -475,6 +483,7 @@ Bluetooth Audio:
     - tests/bluetooth/tester/overlay-le-audio.conf
     - tests/bluetooth/tester/src/audio/
     - doc/connectivity/bluetooth/api/audio/
+    - doc/connectivity/bluetooth/shell/audio/
     - samples/bluetooth/bap*/
     - samples/bluetooth/cap*/
     - samples/bluetooth/hap*/
@@ -493,6 +502,7 @@ Bluetooth Classic:
   collaborators:
     - jhedberg
   files:
+    - doc/connectivity/bluetooth/shell/classic/a2dp.rst
     - subsys/bluetooth/common/
     - subsys/bluetooth/host/classic/
     - include/zephyr/bluetooth/classic/
@@ -510,9 +520,10 @@ Bluetooth ISO:
     - jhedberg
     - kruithofa
     - rugeGerritsen
+    - cvinayak
   files:
     - include/zephyr/bluetooth/iso.h
-    - doc/connectivity/bluetooth/api/shell/iso.rst
+    - doc/connectivity/bluetooth/shell/host/iso.rst
     - samples/bluetooth/iso_*/
     - subsys/bluetooth/Kconfig.iso
     - subsys/bluetooth/host/iso.c
@@ -883,6 +894,7 @@ Devicetree:
   collaborators:
     - decsny
     - galak
+    - rruuaanng
   files-regex:
     - dts/bindings/.*zephyr.*
     - dts/bindings/[^,]+$
@@ -1007,8 +1019,8 @@ Documentation Infrastructure:
 Release Notes:
   status: maintained
   maintainers:
-    - dkalowsk
-    - mmahadevan108
+    - fabiobaltieri
+    - kartben
   collaborators:
     - kartben
   files:
@@ -2172,6 +2184,7 @@ Release Notes:
     - rlubos
     - kludentwo
     - krish2718
+    - MaochenWang1
   files:
     - drivers/wifi/
     - dts/bindings/wifi/
@@ -2198,7 +2211,7 @@ Release Notes:
   collaborators:
     - sachinthegreen
   files:
-    - drivers/wifi/nrfwifi/
+    - drivers/wifi/nrf_wifi/
     - dts/bindings/wifi/nordic,nrf70.yaml
     - dts/bindings/wifi/nordic,nrf70-qspi.yaml
     - dts/bindings/wifi/nordic,nrf70-spi.yaml
@@ -2212,6 +2225,16 @@ Release Notes:
     - boards/shields/nrf7002ek/
   labels:
     - "area: Wi-Fi"
+
+"Drivers: Wi-Fi NXP":
+  status: maintained
+  maintainers:
+    - dleach02
+    - MaochenWang1
+  files:
+    - drivers/wifi/nxp/
+  labels:
+    - "platform: NXP Drivers"
 
 "Drivers: Memory Management":
   status: maintained
@@ -2654,8 +2677,8 @@ MAINTAINERS file:
   status: maintained
   maintainers:
     - MaureenHelm
-  collaborators:
     - nashif
+  collaborators:
     - stephanosio
   files:
     - MAINTAINERS.yml
@@ -2993,7 +3016,7 @@ Networking:
     - subsys/net/lib/ptp/
     - samples/net/ptp/
   labels:
-    - "area: Networking"
+    - "area: PTP"
   tests:
     - sample.net.ptp
 
@@ -3040,6 +3063,7 @@ Networking:
   collaborators:
     - rlubos
     - krish2718
+    - MaochenWang1
   files:
     - doc/connectivity/networking/api/wifi.rst
     - include/zephyr/net/wifi*.h
@@ -3331,7 +3355,7 @@ Shields:
 SPARC arch:
   status: odd fixes
   collaborators:
-    - julius-barendt
+    - tbr-tt
   files:
     - arch/sparc/
     - include/zephyr/arch/sparc/
@@ -3343,7 +3367,7 @@ SPARC arch:
 Gaisler Platforms:
   status: odd fixes
   collaborators:
-    - julius-barendt
+    - tbr-tt
   files:
     - dts/sparc/gaisler/
     - soc/gaisler/
@@ -3509,7 +3533,7 @@ Raspberry Pi Pico Platforms:
     - boards/raspberrypi/
     - boards/adafruit/kb2040/
     - boards/sparkfun/pro_micro_rp2040/
-    - dts/arm/rpi_pico/
+    - dts/arm/raspberrypi/rpi_pico/
     - dts/bindings/*/raspberrypi,pico*
     - drivers/*/*rpi_pico
     - drivers/*/*rpi_pico*/
@@ -3659,11 +3683,9 @@ NXP Drivers:
     - dleach02
     - mmahadevan108
   collaborators:
-    - danieldegrasse
     - decsny
     - manuargue
     - dbaluta
-    - MarkWangChinese
   files-regex:
     - ^drivers/.*nxp.*
     - ^drivers/.*mcux.*
@@ -3674,7 +3696,7 @@ NXP Drivers:
     - drivers/*/*.mcux
     - drivers/*/*.nxp
     - drivers/*/*nxp*
-    - drivers/*/*kinetis*
+    - drivers/*/*/*kinetis*
     - drivers/misc/*/nxp*
     - include/zephyr/dt-bindings/*/*nxp*
     - include/zephyr/dt-bindings/*/*mcux*
@@ -3684,11 +3706,25 @@ NXP Drivers:
     - include/zephyr/drivers/*/*mcux*
     - arch/arm/core/mpu/nxp_mpu.c
     - dts/bindings/*/nxp*
+  files-exclude:
+    - drivers/wifi/nxp/
+    - drivers/usb/*/*mcux*
   files-regex-exclude:
     - .*s32.*
   labels:
     - "platform: NXP Drivers"
   description: NXP Drivers
+
+NXP MCUX USB:
+  status: maintained
+  maintainers:
+    - mmahadevan108
+    - MarkWangChinese
+  files:
+    - drivers/usb/*/*mcux*
+  labels:
+    - "platform: NXP Drivers"
+  description: NXP MCUX USB shim drivers
 
 NXP Platforms (MCU):
   status: maintained
@@ -3696,7 +3732,6 @@ NXP Platforms (MCU):
     - dleach02
     - mmahadevan108
   collaborators:
-    - danieldegrasse
     - DerekSnell
     - yvanderv
     - EmilioCBen
@@ -3758,7 +3793,6 @@ NXP Platforms (MPU):
     - dleach02
     - dbaluta
     - iuliana-prodan
-    - danieldegrasse
     - yvanderv
   files:
     - dts/arm64/nxp/
@@ -3798,7 +3832,8 @@ Microchip MEC Platforms:
     - drivers/*/*mchp*.c
     - tests/boards/mec15xxevb_assy6853/
     - tests/boards/mec172xevb_assy6906/
-    - dts/bindings/*/microchip,*
+    - dts/bindings/*/microchip,mec*
+    - dts/bindings/*/microchip,xec*
   labels:
     - "platform: Microchip MEC"
 
@@ -4348,6 +4383,7 @@ USB:
     - samples/subsys/usb/
     - subsys/usb/
     - tests/subsys/usb/
+    - tests/drivers/build_all/usb/
     - tests/drivers/usb/
     - tests/drivers/udc/
     - doc/connectivity/usb/
@@ -4739,11 +4775,6 @@ West:
   collaborators:
     - hubertmis
     - nordic-krch
-    - krish2718
-    - sachinthegreen
-    - udaynordic
-    - rajb9
-    - srkanordic
   files:
     - modules/hal_nordic/
   labels:
@@ -4764,7 +4795,7 @@ West:
     - dleach02
     - mmahadevan108
   collaborators:
-    - danieldegrasse
+    - decsny
     - manuargue
     - PetervdPerk-NXP
     - bperseghetti
@@ -4875,6 +4906,14 @@ West:
   labels:
     - "platform: TI"
 
+"West project: hal_wch":
+  status: maintained
+  maintainers:
+    - nzmichaelh
+    - kholia
+  files:
+    - modules/hal_wch/
+
 "West project: hal_wurthelektronik":
   status: maintained
   maintainers:
@@ -4984,6 +5023,7 @@ West:
     - ceolin
   collaborators:
     - ithinuel
+    - wearyzen
     - valeriosetti
     - tomi-font
   files:
@@ -5050,6 +5090,20 @@ West:
   files: []
   labels:
     - "area: native port"
+
+"West project: nrf_wifi":
+  status: maintained
+  maintainers:
+    - krish2718
+    - sachinthegreen
+  collaborators:
+    - udaynordic
+    - rajb9
+    - srkanordic
+  files:
+    - modules/nrf_wifi/
+  labels:
+    - "area: Wi-Fi"
 
 "West project: open-amp":
   status: odd fixes
@@ -5158,6 +5212,7 @@ West:
   collaborators:
     - Vge0rge
     - ithinuel
+    - wearyzen
     - valeriosetti
     - tomi-font
   files:
@@ -5177,6 +5232,7 @@ West:
   collaborators:
     - Vge0rge
     - ithinuel
+    - wearyzen
   files: []
   labels:
     - "area: TF-M"
@@ -5189,6 +5245,7 @@ West:
   collaborators:
     - carlocaione
     - ithinuel
+    - wearyzen
   files:
     - modules/trusted-firmware-a/
   labels:
@@ -5201,6 +5258,7 @@ West:
   collaborators:
     - Vge0rge
     - ithinuel
+    - wearyzen
   files: []
   labels:
     - "area: TF-M"
@@ -5237,6 +5295,8 @@ West:
   maintainers:
     - krish2718
     - jukkar
+  collaborators:
+    - MaochenWang1
   files:
     - modules/hostap/
   labels:

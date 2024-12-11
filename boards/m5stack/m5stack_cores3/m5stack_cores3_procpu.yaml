@@ -1,22 +1,19 @@
 identifier: m5stack_cores3/esp32s3/procpu
 name: M5Stack CoreS3 PROCPU
 type: mcu
-twister: false
 arch: xtensa
 toolchain:
   - zephyr
 supported:
-  - dma
+  - gpio
+  - uart
   - i2c
   - spi
-  - uart
+  - can
+  - counter
   - watchdog
-testing:
-  ignore_tags:
-    - bluetooth
-    - gpio
-    - net
-    - pinmux
-    - pwm
-    - regulator
+  - entropy
+  - pwm
+  - dma
+  - pinmux
 vendor: m5stack

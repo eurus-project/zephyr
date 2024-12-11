@@ -1,17 +1,17 @@
-name: Prep
+name: Prepare For a Twister Run
 
 on:
   workflow_call:
     outputs:
       subset:
         description: subset
-        value: ${{ jobs.prep_push.outputs.subset }} || ${{ jobs.prep_pr.outputs.subset }}
+        value: ${{ jobs.prep_push.outputs.subset != '' && jobs.prep_push.outputs.subset ||  jobs.prep_pr.outputs.subset }}
       size:
         description: size
-        value: ${{ jobs.prep_push.outputs.size }} || ${{ jobs.prep_pr.outputs.size }}
+        value: ${{ jobs.prep_push.outputs.size != '' && jobs.prep_push.outputs.size || jobs.prep_pr.outputs.size }}
       fullrun:
         description: fullrun
-        value: ${{ jobs.prep_push.outputs.fullrun }} || ${{ jobs.prep_pr.outputs.size }}
+        value: ${{ jobs.prep_push.outputs.fullrun != '' && jobs.prep_push.outputs.fullrun || jobs.prep_pr.outputs.size }}
 
 jobs:
   prep_pr:
@@ -50,14 +50,12 @@ jobs:
           echo "ZEPHYR_RUNNER_CLOUD_POD = ${ZEPHYR_RUNNER_CLOUD_POD}"
 
       - name: Clone cached Zephyr repository
-        if: github.event_name == 'pull_request_target'
         continue-on-error: true
         run: |
           git clone --shared /repo-cache/zephyrproject/zephyr .
           git remote set-url origin ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}
 
       - name: Checkout
-        if: github.event_name == 'pull_request_target'
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -65,7 +63,6 @@ jobs:
           persist-credentials: false
 
       - name: Environment Setup
-        if: github.event_name == 'pull_request_target'
         run: |
           git config --global user.email "bot@zephyrproject.org"
           git config --global user.name "Zephyr Bot"
@@ -82,12 +79,11 @@ jobs:
           echo "ZEPHYR_SDK_INSTALL_DIR=/opt/toolchains/zephyr-sdk-$( cat SDK_VERSION )" >> $GITHUB_ENV
 
       - name: Generate Test Plan with Twister
-        if: github.event_name == 'pull_request_target'
         id: test-plan
         run: |
           export ZEPHYR_BASE=${PWD}
           export ZEPHYR_TOOLCHAIN_VARIANT=zephyr
-          python3 ./scripts/ci/test_plan.py -c origin/${BASE_REF}.. --pull-request -t $TESTS_PER_BUILDER
+          python3 ./scripts/ci/test_plan.py -c origin/${BASE_REF}.. --no-detailed-test-id --pull-request -t $TESTS_PER_BUILDER
           if [ -s .testplan ]; then
             cat .testplan >> $GITHUB_ENV
           else

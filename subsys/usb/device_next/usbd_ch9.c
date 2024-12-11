@@ -86,8 +86,8 @@ static int sreq_set_address(struct usbd_context *const uds_ctx)
 	struct usb_setup_packet *setup = usbd_get_setup_pkt(uds_ctx);
 	struct udc_device_caps caps = udc_caps(uds_ctx->dev);
 
-	/* Not specified if wLength is non-zero, treat as error */
-	if (setup->wValue > 127 || setup->wLength) {
+	/* Not specified if wIndex or wLength is non-zero, treat as error */
+	if (setup->wValue > 127 || setup->wIndex || setup->wLength) {
 		errno = -ENOTSUP;
 		return 0;
 	}
@@ -858,7 +858,13 @@ static int sreq_get_interface(struct usbd_context *const uds_ctx,
 		return 0;
 	}
 
+	/* Treat as error in default (not specified) and addressed states. */
 	cfg_nd = usbd_config_get_current(uds_ctx);
+	if (cfg_nd == NULL) {
+		errno = -EPERM;
+		return 0;
+	}
+
 	cfg_desc = cfg_nd->desc;
 
 	if (setup->wIndex > UINT8_MAX ||
