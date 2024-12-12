@@ -1045,6 +1045,20 @@ static int wpas_add_and_config_network(struct wpa_supplicant *wpa_s,
 				goto out;
 			}
 
+			if (params->suiteb_type == WIFI_SUITEB_192) {
+				if (params->TLS_cipher == WIFI_EAP_TLS_ECC_P384) {
+					if (!wpa_cli_cmd_v("set_network %d openssl_ciphers \"%s\"",
+							resp.network_id,
+							cipher_config.openssl_ciphers))
+						goto out;
+				} else if (params->TLS_cipher == WIFI_EAP_TLS_RSA_3K) {
+					snprintf(phase1, sizeof(phase1), "tls_suiteb=1");
+					if (!wpa_cli_cmd_v("set_network %d phase1 \"%s\"",
+							resp.network_id, &phase1[0]))
+						goto out;
+				}
+			}
+
 			if (!wpa_cli_cmd_v("set_network %d key_mgmt %s", resp.network_id,
 					   cipher_config.key_mgmt)) {
 				goto out;
@@ -2495,6 +2509,7 @@ out:
 
 int supplicant_ap_wps_pin(const struct device *dev, struct wifi_wps_config_params *params)
 {
+#define WPS_PIN_EXPIRE_TIME 120
 	struct hostapd_iface *iface;
 	char *get_pin_cmd = "WPS_AP_PIN random";
 	int ret  = 0;
@@ -2523,7 +2538,7 @@ int supplicant_ap_wps_pin(const struct device *dev, struct wifi_wps_config_param
 			goto out;
 		}
 
-		if (!hostapd_cli_cmd_v("wps_pin any %s", params->pin)) {
+		if (!hostapd_cli_cmd_v("wps_pin any %s %d", params->pin, WPS_PIN_EXPIRE_TIME)) {
 			goto out;
 		}
 
