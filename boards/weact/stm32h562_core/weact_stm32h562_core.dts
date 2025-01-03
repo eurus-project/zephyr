@@ -150,3 +150,15 @@ zephyr_udc0: &usb {
 &vbat {
 	status = "okay";
 };
+
+&timers3 {
+    status = "okay";
+    st,prescaler = <24>;
+
+    pwm3: pwm{
+        status = "okay";
+        pinctrl-0 = <&tim3_ch1_pc6 &tim3_ch2_pc7 &tim3_ch3_pc8 &tim3_ch4_pc9>;
+        pinctrl-names = "default";
+    };
+};
+
