@@ -1,0 +1,18 @@
+identifier: weact_stm32h562_core
+name: WeAct STM32H562 core board
+type: mcu
+arch: arm
+toolchain:
+  - zephyr
+  - gnuarmemb
+  - xtools
+supported:
+  - counter
+  - spi
+  - i2c
+  - i3c
+  - uart
+  - pwm
+  - adc
+  - sdmmc
+vendor: weact
