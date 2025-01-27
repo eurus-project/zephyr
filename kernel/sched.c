@@ -273,7 +273,7 @@ static void update_metairq_preempt(struct k_thread *thread)
 	    !thread_is_preemptible(_current)) {
 		/* Record new preemption */
 		_current_cpu->metairq_preempted = _current;
-	} else if (!thread_is_metairq(thread) && !z_is_idle_thread_object(thread)) {
+	} else if (!thread_is_metairq(thread)) {
 		/* Returning from existing preemption */
 		_current_cpu->metairq_preempted = NULL;
 	}
@@ -1031,6 +1031,7 @@ static inline void z_vrfy_k_reschedule(void)
 {
 	z_impl_k_reschedule();
 }
+#include <zephyr/syscalls/k_reschedule_mrsh.c>
 #endif /* CONFIG_USERSPACE */
 
 bool k_can_yield(void)
