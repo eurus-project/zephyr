@@ -340,22 +340,47 @@ static int bme280_chip_init(const struct device *dev)
 		return err;
 	}
 
-	err = bme280_reg_read(dev, BME280_REG_ID, &data->chip_id, 1);
-	if (err < 0) {
-		LOG_DBG("ID read failed: %d", err);
-		return err;
+	/* 
+		Low quality BMP280 sensors can boot longer than usual, code bellow 
+		handles that MCU tries multiple times until sensor wakes up, or not. 
+		NOTE: Replace hardcoded retry count with some Kconfig option!
+	*/
+	for (int i = 0; i < 10; i++)
+	{
+		k_msleep(1);
+
+		err = bme280_reg_read(dev, BME280_REG_ID, &data->chip_id, 1);
+		if (err < 0) {
+			if (i < 10) {
+				LOG_DBG("ID read failed: %d", err);
+				LOG_DBG("Trying again, trial: %d", i);
+				continue;
+			} else {
+				LOG_DBG("ID read failed after %d times: ", i);
+				return err;
+			}
+		}
+
+		if (data->chip_id == BME280_CHIP_ID) {
+			LOG_DBG("ID OK");
+			break;
+		} else if (data->chip_id == BMP280_CHIP_ID_MP ||
+				data->chip_id == BMP280_CHIP_ID_SAMPLE_1) {
+			LOG_DBG("ID OK (BMP280)");
+			break;
+		} else {
+			if (i < 10) {
+				LOG_DBG("Bad chip id 0x%x", data->chip_id);
+				LOG_DBG("Trying again, trial: %d", i);
+				continue;
+			} else {
+				LOG_DBG("Bad chip ID returned after %d trials", i);				
+				return -ENOTSUP;
+			}
+		}
 	}
 
-	if (data->chip_id == BME280_CHIP_ID) {
-		LOG_DBG("ID OK");
-	} else if (data->chip_id == BMP280_CHIP_ID_MP ||
-		   data->chip_id == BMP280_CHIP_ID_SAMPLE_1) {
-		LOG_DBG("ID OK (BMP280)");
-	} else {
-		LOG_DBG("bad chip id 0x%x", data->chip_id);
-		return -ENOTSUP;
-	}
-
+	/* reset the sensor. This will put the sensor is sleep mode */
 	err = bme280_reg_write(dev, BME280_REG_RESET, BME280_CMD_SOFT_RESET);
 	if (err < 0) {
 		LOG_DBG("Soft-reset failed: %d", err);
@@ -381,17 +406,21 @@ static int bme280_chip_init(const struct device *dev)
 		}
 	}
 
-	err = bme280_reg_write(dev, BME280_REG_CTRL_MEAS,
-			       BME280_CTRL_MEAS_VAL);
+	/* Writes to "config" register may be ignored in normal
+	 * mode, but never in sleep mode [datasheet 5.4.6].
+	 *
+	 * So perform "config" write before "ctrl_meas", as "ctrl_meas"
+	 * could cause the sensor to transition from sleep to normal mode.
+	 */
+	err = bme280_reg_write(dev, BME280_REG_CONFIG, BME280_CONFIG_VAL);
 	if (err < 0) {
-		LOG_DBG("CTRL_MEAS write failed: %d", err);
+		LOG_DBG("CONFIG write failed: %d", err);
 		return err;
 	}
 
-	err = bme280_reg_write(dev, BME280_REG_CONFIG,
-			       BME280_CONFIG_VAL);
+	err = bme280_reg_write(dev, BME280_REG_CTRL_MEAS, BME280_CTRL_MEAS_VAL);
 	if (err < 0) {
-		LOG_DBG("CONFIG write failed: %d", err);
+		LOG_DBG("CTRL_MEAS write failed: %d", err);
 		return err;
 	}
 	/* Wait for the sensor to be ready */
